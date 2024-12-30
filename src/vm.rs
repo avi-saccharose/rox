@@ -78,7 +78,7 @@ impl Vm {
     fn pop(&mut self) -> Result<Obj, String> {
         if self.stack_ip == 0 {
             dbg!("Stack is empty!!!");
-            dbg!(self.stack_ip);
+            //dbg!(self.stack_ip);
         } else {
             self.stack_ip -= 1;
         }
@@ -161,9 +161,8 @@ impl Vm {
                     self.push(value)?;
                 }
                 OpCode::Print => {
-                    dbg!(&self);
                     let value = self.pop()?;
-                    dbg!(value);
+                    println!("{:?}", value);
                 }
                 OpCode::Return => return Ok(()),
                 _ => todo!(),
@@ -182,7 +181,7 @@ mod tests {
             constants: vec![Obj::Num(12)],
         };
         let mut vm = Vm::default();
-        vm.run(chunk);
+        vm.run(chunk).unwrap();
         assert_eq!(Obj::Num(12), vm.pop().unwrap())
     }
 
@@ -198,7 +197,7 @@ mod tests {
             constants: vec![Obj::Num(4), Obj::Num(6)],
         };
         let mut vm = Vm::default();
-        vm.run(chunk);
+        vm.run(chunk).unwrap();
         assert_eq!(Obj::Num(10), vm.pop().unwrap())
     }
 }

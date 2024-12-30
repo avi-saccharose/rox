@@ -77,6 +77,7 @@ impl<'a> Lexer<'a> {
             "true" => (Kind::True, None),
             "false" => (Kind::False, None),
             "nil" => (Kind::Nil, None),
+            "print" => (Kind::Print, None),
             _ => (Kind::Ident, Some(Literal::Ident(ident))),
         };
         Ok(self.make_token(kind, literal))
@@ -215,8 +216,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn unterminated_string() {
-        let res = lex("\"unterminated_string").unwrap();
+        let res = lex("\"unterminated_string");
+        assert!(res.is_err());
     }
 }

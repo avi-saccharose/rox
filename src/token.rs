@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd)]
 pub(crate) enum Kind {
     Lparen,
     Rparen,
@@ -27,9 +27,10 @@ pub(crate) enum Kind {
     LtEq,
     Lt,
     NtEq,
+    Print,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub(crate) enum Literal {
     Number(i64),
     String(String),
@@ -37,7 +38,7 @@ pub(crate) enum Literal {
     Float(f64),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub(crate) struct Token {
     pub(crate) kind: Kind,
     pub(crate) line: usize,
