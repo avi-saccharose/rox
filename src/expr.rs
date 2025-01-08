@@ -16,7 +16,7 @@ pub(crate) struct Var {
 impl Var {
     pub fn name(&self) -> &String {
         match self.name.literal.as_ref().unwrap() {
-            token::Literal::String(name) => name,
+            token::Literal::Ident(name) => name,
             _ => unreachable!(),
         }
     }
@@ -28,6 +28,7 @@ pub(crate) enum Expr {
     Unary(Unary),
     Grouping(Box<Expr>),
     Literal(Literal),
+    Var(String),
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]

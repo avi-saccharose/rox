@@ -61,7 +61,7 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> ParseResult<()> {
-        while let Some(token) = self.peek() {
+        while self.peek().is_some() {
             self.stmt_declaration()?;
         }
         Ok(())
@@ -222,15 +222,18 @@ impl Parser {
     }
 
     fn make_literal(&self, token: Token) -> Expr {
-        let literal = token.literal.unwrap();
-        let literal = match (token.kind, literal) {
-            (Kind::Num, token::Literal::Number(int)) => Literal::Number(int),
-            (Kind::String, token::Literal::String(str)) => Literal::String(str),
-            (Kind::Ident, token::Literal::Ident(iden)) => Literal::Ident(iden),
-            (Kind::True, _) => Literal::Bool(true),
-            (Kind::False, _) => Literal::Bool(false),
-            (Kind::Nil, _) => Literal::Nil,
-            _ => unreachable!(),
+        let literal = match token.kind {
+            Kind::True => Literal::Bool(true),
+            Kind::False => Literal::Bool(false),
+            Kind::Nil => Literal::Nil,
+            _ => match token.literal.unwrap() {
+                token::Literal::String(str) => Literal::String(str),
+                token::Literal::Number(int) => Literal::Number(int),
+                token::Literal::Ident(iden) => {
+                    return Expr::Var(iden);
+                }
+                _ => unreachable!(),
+            },
         };
         Expr::Literal(literal)
     }
@@ -282,7 +285,7 @@ mod tests {
 
     #[test]
     fn parse_var_decl() {
-        let parsed = parse(tokenize("var x = 1;").unwrap());
+        let parsed = parse(tokenize("var x = 1; var y = true;").unwrap());
         assert!(parsed.is_ok());
         assert_eq!(
             parsed.unwrap()[0],
