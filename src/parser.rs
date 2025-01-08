@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::{
-    expr::{Bin, Expr, Literal, Stmt, Unary},
+    expr::{Bin, Expr, Literal, Stmt, Unary, Var},
     token::{self, Kind, Token},
 };
 
@@ -53,11 +53,51 @@ impl Parser {
         self.tokens.pop()
     }
 
-    fn consume(&mut self, kind: Kind, msg: &str) -> ParseResult<()> {
+    fn consume(&mut self, kind: Kind, msg: &str) -> ParseResult<Token> {
         if !self.check(&kind) {
             return Err(msg.to_string());
         }
+        Ok(self.advance().unwrap())
+    }
+
+    pub fn parse(&mut self) -> ParseResult<()> {
+        while let Some(token) = self.peek() {
+            self.stmt_declaration()?;
+        }
+        Ok(())
+    }
+
+    pub fn stmt_declaration(&mut self) -> ParseResult<()> {
+        if let Some(token) = self.peek() {
+            match token.kind {
+                Kind::Var => self.stmt_var()?,
+                _ => self.stmt()?,
+            }
+        }
+        Ok(())
+    }
+
+    pub fn stmt_var(&mut self) -> ParseResult<()> {
         self.advance();
+        let name = self.consume(Kind::Ident, "Expect variable name")?;
+        let mut initializer: Option<Expr> = None;
+
+        if self.check(&Kind::Eq) {
+            self.advance();
+            initializer = self.expr().ok();
+        }
+        self.consume(Kind::Semicolon, "Expected ';' after var declaration")?;
+        self.ast.push(Stmt::VarDecl(Var { name, initializer }));
+        Ok(())
+    }
+
+    pub fn stmt(&mut self) -> ParseResult<()> {
+        if let Some(token) = self.peek() {
+            match token.kind {
+                Kind::Print => self.stmt_print()?,
+                _ => self.stmt_expr()?,
+            }
+        }
         Ok(())
     }
 
@@ -194,16 +234,6 @@ impl Parser {
         };
         Expr::Literal(literal)
     }
-
-    pub fn parse(&mut self) -> ParseResult<()> {
-        while let Some(token) = self.peek() {
-            match token.kind {
-                Kind::Print => self.stmt_print()?,
-                _ => self.stmt_expr()?,
-            }
-        }
-        Ok(())
-    }
 }
 pub(crate) fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, String> {
     //print!("{:?}", &tokens);
@@ -247,6 +277,23 @@ mod tests {
         assert_eq!(
             parsed.unwrap()[0],
             Stmt::Print(Expr::Literal(Literal::Number(1)))
+        );
+    }
+
+    #[test]
+    fn parse_var_decl() {
+        let parsed = parse(tokenize("var x = 1;").unwrap());
+        assert!(parsed.is_ok());
+        assert_eq!(
+            parsed.unwrap()[0],
+            Stmt::VarDecl(Var {
+                name: Token {
+                    kind: Kind::Ident,
+                    line: 1,
+                    literal: Some(token::Literal::Ident("x".to_string()))
+                },
+                initializer: Some(Expr::Literal(Literal::Number(1)))
+            })
         );
     }
 }

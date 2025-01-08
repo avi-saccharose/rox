@@ -1,9 +1,25 @@
-use crate::token::Kind;
+use crate::token::{self, Kind, Token};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub(crate) enum Stmt {
     Print(Expr),
     Expr(Expr),
+    VarDecl(Var),
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub(crate) struct Var {
+    pub name: Token,
+    pub initializer: Option<Expr>,
+}
+
+impl Var {
+    pub fn name(&self) -> &String {
+        match self.name.literal.as_ref().unwrap() {
+            token::Literal::String(name) => name,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
