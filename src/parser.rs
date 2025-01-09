@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::{
-    expr::{Bin, Expr, Literal, Stmt, Unary, Var},
+    expr::{Assign, Bin, Expr, Literal, Stmt, Unary, Var},
     token::{self, Kind, Token},
 };
 
@@ -117,7 +117,25 @@ impl Parser {
     }
 
     fn expr(&mut self) -> ParseResult<Expr> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> ParseResult<Expr> {
+        let expr = self.equality()?;
+        if self.check(&Kind::Eq) {
+            let op = self.advance().unwrap();
+            let value = self.assignment()?;
+            match expr {
+                Expr::Var(name) => {
+                    return Ok(Expr::Assign(Assign {
+                        name,
+                        value: Box::new(value),
+                    }));
+                }
+                _ => return Err("Invalid assignment".to_string()),
+            }
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> ParseResult<Expr> {
@@ -238,6 +256,7 @@ impl Parser {
         Expr::Literal(literal)
     }
 }
+
 pub(crate) fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, String> {
     //print!("{:?}", &tokens);
     let mut parser = Parser::new(tokens);
@@ -245,6 +264,7 @@ pub(crate) fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, String> {
     //  dbg!(&parser.ast);
     Ok(parser.ast)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -298,5 +318,17 @@ mod tests {
                 initializer: Some(Expr::Literal(Literal::Number(1)))
             })
         );
+    }
+
+    #[test]
+    fn parse_assign() {
+        let parsed = parse(tokenize("x = 1;").unwrap());
+        assert!(parsed.is_ok());
+    }
+
+    #[test]
+    fn parse_invalid_assignment() {
+        let parsed = parse(tokenize("1 = 1;").unwrap());
+        assert!(parsed.is_err());
     }
 }

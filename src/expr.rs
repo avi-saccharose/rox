@@ -29,6 +29,13 @@ pub(crate) enum Expr {
     Grouping(Box<Expr>),
     Literal(Literal),
     Var(String),
+    Assign(Assign),
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub(crate) struct Assign {
+    pub name: String,
+    pub value: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
