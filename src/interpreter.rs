@@ -141,6 +141,7 @@ impl Interpreter {
                 Stmt::Expr(expr) => {
                     self.eval_expr(expr)?;
                 }
+                _ => todo!(),
             }
         }
         Ok(())

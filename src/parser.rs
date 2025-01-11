@@ -62,22 +62,20 @@ impl Parser {
 
     pub fn parse(&mut self) -> ParseResult<()> {
         while self.peek().is_some() {
-            self.stmt_declaration()?;
+            let stmt = self.stmt_declaration()?;
+            self.ast.push(stmt);
         }
         Ok(())
     }
 
-    pub fn stmt_declaration(&mut self) -> ParseResult<()> {
-        if let Some(token) = self.peek() {
-            match token.kind {
-                Kind::Var => self.stmt_var()?,
-                _ => self.stmt()?,
-            }
+    pub fn stmt_declaration(&mut self) -> ParseResult<Stmt> {
+        match self.peek().unwrap().kind {
+            Kind::Var => self.stmt_var(),
+            _ => self.stmt(),
         }
-        Ok(())
     }
 
-    pub fn stmt_var(&mut self) -> ParseResult<()> {
+    pub fn stmt_var(&mut self) -> ParseResult<Stmt> {
         self.advance();
         let name = self.consume(Kind::Ident, "Expect variable name")?;
         let mut initializer: Option<Expr> = None;
@@ -87,33 +85,38 @@ impl Parser {
             initializer = self.expr().ok();
         }
         self.consume(Kind::Semicolon, "Expected ';' after var declaration")?;
-        self.ast.push(Stmt::VarDecl(Var { name, initializer }));
-        Ok(())
+        Ok(Stmt::VarDecl(Var { name, initializer }))
     }
 
-    pub fn stmt(&mut self) -> ParseResult<()> {
-        if let Some(token) = self.peek() {
-            match token.kind {
-                Kind::Print => self.stmt_print()?,
-                _ => self.stmt_expr()?,
-            }
+    pub fn stmt(&mut self) -> ParseResult<Stmt> {
+        match self.peek().unwrap().kind {
+            Kind::Print => self.stmt_print(),
+            Kind::LBrace => self.stmt_block(),
+            _ => self.stmt_expr(),
         }
-        Ok(())
     }
 
-    fn stmt_print(&mut self) -> ParseResult<()> {
+    fn stmt_print(&mut self) -> ParseResult<Stmt> {
         self.advance();
         let expr = self.expr()?;
         self.consume(Kind::Semicolon, "EXpect ';' after expression")?;
-        self.ast.push(Stmt::Print(expr));
-        Ok(())
+        Ok(Stmt::Print(expr))
     }
 
-    fn stmt_expr(&mut self) -> ParseResult<()> {
+    fn stmt_expr(&mut self) -> ParseResult<Stmt> {
         let expr = self.expr()?;
         self.consume(Kind::Semicolon, "Expect ';' after expression")?;
-        self.ast.push(Stmt::Expr(expr));
-        Ok(())
+        Ok(Stmt::Expr(expr))
+    }
+
+    fn stmt_block(&mut self) -> ParseResult<Stmt> {
+        self.advance();
+        let mut stmts = Vec::new();
+        while !self.eof() && !self.check(&Kind::RBrace) {
+            stmts.push(self.stmt_declaration()?);
+        }
+        self.consume(Kind::RBrace, "Expect '}' after block")?;
+        Ok(Stmt::Block(stmts))
     }
 
     fn expr(&mut self) -> ParseResult<Expr> {
@@ -330,5 +333,12 @@ mod tests {
     fn parse_invalid_assignment() {
         let parsed = parse(tokenize("1 = 1;").unwrap());
         assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn parse_block() {
+        let parsed = parse(tokenize("{ var x = 1; }").unwrap());
+        assert!(parsed.is_ok());
+        assert!(matches!(parsed.unwrap()[0], Stmt::Block(..)));
     }
 }

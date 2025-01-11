@@ -122,6 +122,8 @@ impl<'a> Lexer<'a> {
             let kind = match ch {
                 '(' => Kind::Lparen,
                 ')' => Kind::Rparen,
+                '{' => Kind::LBrace,
+                '}' => Kind::RBrace,
                 ';' => Kind::Semicolon,
                 ',' => Kind::Comma,
                 '+' => Kind::Plus,

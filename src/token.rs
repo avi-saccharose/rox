@@ -28,6 +28,8 @@ pub(crate) enum Kind {
     Lt,
     NtEq,
     Print,
+    LBrace,
+    RBrace,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]

@@ -5,6 +5,7 @@ pub(crate) enum Stmt {
     Print(Expr),
     Expr(Expr),
     VarDecl(Var),
+    Block(Vec<Stmt>),
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
