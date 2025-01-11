@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{collections::HashMap, fmt::write};
+use std::{cell::RefCell, collections::HashMap, fmt::write, ops::Deref, rc::Rc};
 
 use crate::{
     error::RoxError,
@@ -29,37 +29,75 @@ impl fmt::Display for Value {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Env {
     values: HashMap<String, Value>,
+    enclosing: Option<Rc<RefCell<Env>>>,
 }
 
 impl Env {
     pub(crate) fn new() -> Self {
         Self {
             values: HashMap::new(),
+            enclosing: None,
         }
     }
 
-    pub(crate) fn define(&mut self, name: String, value: Value) {
+    fn define(&mut self, name: String, value: Value) {
         self.values.insert(name, value);
     }
 
-    pub(crate) fn get(&mut self, name: &str) -> IntpResult<&Value> {
+    fn get(&self, name: &str) -> IntpResult<Value> {
         if let Some(value) = self.values.get(name) {
-            return Ok(value);
+            return Ok(value.clone());
         }
-        Err(RoxError::RuntimeError)
+        if self.enclosing.is_none() {
+            return Err(RoxError::RuntimeError);
+        }
+        let enclosing = self.enclosing.as_ref().unwrap().borrow();
+        enclosing.get(name)
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Interpreter {
-    pub(crate) env: Env,
+    pub(crate) env: Rc<RefCell<Env>>,
 }
 
 type IntpResult<T> = Result<T, RoxError>;
 
 impl Interpreter {
     pub(crate) fn new() -> Self {
-        Self { env: Env::new() }
+        Self {
+            env: Rc::new(RefCell::new(Env::new())),
+        }
+    }
+
+    fn define(&mut self, name: String, value: Value) {
+        self.env.borrow_mut().define(name, value);
+    }
+
+    fn get(&self, name: &str) -> IntpResult<Value> {
+        self.env.borrow().get(name)
+    }
+
+    pub(crate) fn eval_stmt(&mut self, stmt: Stmt) -> IntpResult<()> {
+        match stmt {
+            Stmt::VarDecl(var) => self.stmt_var(var)?,
+            Stmt::Print(expr) => self.stmt_print(expr)?,
+            Stmt::Expr(expr) => {
+                self.eval_expr(expr)?;
+            }
+            Stmt::Block(stmts) => self.stmt_block(stmts, Env::new())?,
+            _ => todo!(),
+        }
+        Ok(())
+    }
+    fn stmt_block(&mut self, block: Vec<Stmt>, mut env: Env) -> IntpResult<()> {
+        let previous = std::mem::replace(&mut self.env, Rc::new(RefCell::new(Env::new())));
+        self.env.borrow_mut().enclosing = Some(Rc::clone(&previous));
+        for stmt in block {
+            self.eval_stmt(stmt)?;
+        }
+        std::mem::replace(&mut self.env, previous);
+        Ok(())
     }
 
     fn stmt_print(&mut self, expr: Expr) -> IntpResult<()> {
@@ -75,7 +113,7 @@ impl Interpreter {
             None => Value::Nil,
         };
 
-        self.env.define(name, value);
+        self.define(name, value);
 
         Ok(())
     }
@@ -85,7 +123,7 @@ impl Interpreter {
             Expr::Bin(expr) => self.expr_binary(expr),
             Expr::Literal(literal) => self.expr_literal(literal),
             Expr::Var(str) => {
-                let value = self.env.get(&str)?;
+                let value = self.get(&str)?;
                 Ok(value.clone())
             }
             _ => todo!(),
@@ -141,6 +179,7 @@ impl Interpreter {
                 Stmt::Expr(expr) => {
                     self.eval_expr(expr)?;
                 }
+                Stmt::Block(stmts) => self.stmt_block(stmts, Env::new())?,
                 _ => todo!(),
             }
         }
@@ -160,6 +199,7 @@ fn interpret(program: Vec<Stmt>) -> Result<(), RoxError> {
     let mut interpreter = Interpreter::new();
     interpreter.run(program)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,6 +212,10 @@ mod tests {
     fn parse(source: &str) -> Result<Vec<Stmt>, RoxError> {
         let tokens = lex(source)?;
         parser::parse(tokens).map_err(|_| RoxError::ParseError)
+    }
+
+    fn wrap_stmt(stmt: Stmt) -> Vec<Stmt> {
+        vec![stmt]
     }
 
     #[test]
@@ -191,7 +235,7 @@ mod tests {
         assert!(ast.is_ok());
         let mut interpreter = Interpreter::new();
         assert!(interpreter.run(ast.unwrap()).is_ok());
-        assert_eq!(interpreter.env.get("x"), Ok(&Value::Bool(true)));
+        assert_eq!(interpreter.get("x"), Ok(Value::Bool(true)));
     }
 
     #[test]
@@ -202,5 +246,19 @@ mod tests {
         let result = interpret(ast.unwrap());
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn eval_block() {
+        let source = "{ var b = 1; print b; } 
+                        print b;";
+        let ast = parse(source);
+        assert!(&ast.is_ok());
+        let ast = ast.unwrap();
+        let mut interpreter = Interpreter::new();
+        let block = wrap_stmt(ast[0].clone());
+        let expr = wrap_stmt(ast[1].clone());
+        assert!(interpreter.run(block).is_ok());
+        assert!(interpreter.run(expr).is_err());
     }
 }

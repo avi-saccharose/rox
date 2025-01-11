@@ -4,14 +4,20 @@ use std::{error::Error, fmt::Display};
 use crate::token::{Kind, Literal, Token};
 
 #[derive(Debug)]
-pub(crate) struct LexerError;
+pub(crate) struct LexerError {
+    msg: String,
+    line: usize,
+}
 
 impl Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Lexing error")
+        let msg = format!("[line: {}] {}", self.line, self.msg);
+        f.write_str(&msg)
     }
 }
+
 impl Error for LexerError {}
+
 struct Lexer<'a> {
     source: Vec<char>,
     current: usize,
@@ -60,7 +66,10 @@ impl<'a> Lexer<'a> {
         let res = int.parse::<i64>();
         match res {
             Ok(val) => Ok(self.make_token(Kind::Num, Some(Literal::Number(val)))),
-            Err(_) => Err(LexerError),
+            Err(_) => Err(LexerError {
+                msg: "error parsing number".to_string(),
+                line: self.line,
+            }),
         }
     }
 
@@ -92,7 +101,10 @@ impl<'a> Lexer<'a> {
             }
             string.push(ch);
         }
-        Err(LexerError)
+        Err(LexerError {
+            msg: "unterminated string".to_string(),
+            line: self.line,
+        })
     }
 
     fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
@@ -162,12 +174,17 @@ impl<'a> Lexer<'a> {
                         Kind::Bang
                     }
                 }
+                '\0' => break,
 
-                _ => Kind::Err,
+                _ => {
+                    let msg = format!("Unknown character {}", ch);
+                    return Err(LexerError {
+                        msg,
+                        line: self.line,
+                    });
+                }
             };
-            if ch == '\0' {
-                break;
-            }
+
             tokens.push(self.make_token(kind, None));
             continue;
         }
@@ -179,6 +196,7 @@ pub(crate) fn lex(source: &str) -> Result<Vec<Token>, LexerError> {
     let mut lexer = Lexer::new(source);
     lexer.tokenize()
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

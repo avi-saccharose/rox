@@ -17,7 +17,6 @@ pub(crate) enum Kind {
     Minus,
     Star,
     Slash,
-    Err,
     String,
     Bang,
     Eq,
@@ -37,7 +36,6 @@ pub(crate) enum Literal {
     Number(i64),
     String(String),
     Ident(String),
-    Float(f64),
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
