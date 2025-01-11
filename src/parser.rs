@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::{
-    expr::{Assign, Bin, Expr, Literal, Stmt, Unary, Var},
+    expr::{Assign, Bin, Expr, If, Literal, Stmt, Unary, Var},
     token::{self, Kind, Token},
 };
 
@@ -92,8 +92,28 @@ impl Parser {
         match self.peek().unwrap().kind {
             Kind::Print => self.stmt_print(),
             Kind::LBrace => self.stmt_block(),
+            Kind::If => self.stmt_if(),
             _ => self.stmt_expr(),
         }
+    }
+
+    fn stmt_if(&mut self) -> ParseResult<Stmt> {
+        self.advance();
+        self.consume(Kind::Lparen, "expect '(' after if")?;
+        let cond = self.expr()?;
+        self.consume(Kind::Rparen, "expect ')' after expression")?;
+        let then_branch = Box::new(self.stmt()?);
+        let mut else_branch: Option<Box<Stmt>> = None;
+
+        if self.check(&Kind::Else) {
+            self.advance();
+            else_branch = Some(Box::new(self.stmt()?));
+        }
+        Ok(Stmt::If(If {
+            cond,
+            then_branch,
+            else_branch,
+        }))
     }
 
     fn stmt_print(&mut self) -> ParseResult<Stmt> {
@@ -340,5 +360,12 @@ mod tests {
         let parsed = parse(tokenize("{ var x = 1; }").unwrap());
         assert!(parsed.is_ok());
         assert!(matches!(parsed.unwrap()[0], Stmt::Block(..)));
+    }
+
+    #[test]
+    fn parse_if() {
+        let parsed = parse(tokenize("if (true) print true;").unwrap());
+        assert!(parsed.is_ok());
+        assert!(matches!(parsed.unwrap()[0], Stmt::If(..)));
     }
 }

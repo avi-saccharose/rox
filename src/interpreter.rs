@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, fmt::write, ops::Deref, rc::Rc};
 
 use crate::{
     error::RoxError,
-    expr::{Bin, Expr, Literal, Stmt, Var},
+    expr::{Bin, Expr, If, Literal, Stmt, Var},
     token::Kind,
 };
 
@@ -78,6 +78,14 @@ impl Interpreter {
         self.env.borrow().get(name)
     }
 
+    fn is_truthy(&self, value: &Value) -> bool {
+        match value {
+            Value::Nil => false,
+            Value::Bool(bool) => *bool,
+            _ => true,
+        }
+    }
+
     pub(crate) fn eval_stmt(&mut self, stmt: Stmt) -> IntpResult<()> {
         match stmt {
             Stmt::VarDecl(var) => self.stmt_var(var)?,
@@ -90,13 +98,24 @@ impl Interpreter {
         }
         Ok(())
     }
-    fn stmt_block(&mut self, block: Vec<Stmt>, mut env: Env) -> IntpResult<()> {
+
+    fn stmt_if(&mut self, stmt: If) -> IntpResult<()> {
+        let result = self.eval_expr(stmt.cond)?;
+        let result = self.is_truthy(&result);
+        if result {
+            self.eval_stmt(*stmt.then_branch)?;
+        } else if let Some(branch) = stmt.else_branch {
+            self.eval_stmt(*branch)?;
+        }
+        Ok(())
+    }
+    fn stmt_block(&mut self, block: Vec<Stmt>, _: Env) -> IntpResult<()> {
         let previous = std::mem::replace(&mut self.env, Rc::new(RefCell::new(Env::new())));
         self.env.borrow_mut().enclosing = Some(Rc::clone(&previous));
         for stmt in block {
             self.eval_stmt(stmt)?;
         }
-        std::mem::replace(&mut self.env, previous);
+        let _ = std::mem::replace(&mut self.env, previous);
         Ok(())
     }
 
@@ -174,6 +193,7 @@ impl Interpreter {
     pub(crate) fn run(&mut self, program: Vec<Stmt>) -> IntpResult<()> {
         for stmt in program {
             match stmt {
+                Stmt::If(stmt) => self.stmt_if(stmt)?,
                 Stmt::VarDecl(var) => self.stmt_var(var)?,
                 Stmt::Print(expr) => self.stmt_print(expr)?,
                 Stmt::Expr(expr) => {
@@ -260,5 +280,14 @@ mod tests {
         let expr = wrap_stmt(ast[1].clone());
         assert!(interpreter.run(block).is_ok());
         assert!(interpreter.run(expr).is_err());
+    }
+
+    #[test]
+    fn eval_if() {
+        let source = "if(false) print true;";
+        let ast = parse(source);
+        assert!(ast.is_ok());
+        let mut interpreter = Interpreter::new();
+        assert!(interpreter.run(ast.unwrap()).is_ok());
     }
 }

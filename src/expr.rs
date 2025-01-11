@@ -2,10 +2,18 @@ use crate::token::{self, Kind, Token};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub(crate) enum Stmt {
+    If(If),
     Print(Expr),
     Expr(Expr),
     VarDecl(Var),
     Block(Vec<Stmt>),
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub(crate) struct If {
+    pub cond: Expr,
+    pub then_branch: Box<Stmt>,
+    pub else_branch: Option<Box<Stmt>>,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
