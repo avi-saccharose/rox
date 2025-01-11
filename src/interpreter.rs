@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, fmt::write, ops::Deref, rc::Rc};
 
 use crate::{
     error::RoxError,
-    expr::{Bin, Expr, If, Literal, Stmt, Var},
+    expr::{Assign, Bin, Expr, If, Literal, Stmt, Var, While},
     token::Kind,
 };
 
@@ -54,6 +54,18 @@ impl Env {
         let enclosing = self.enclosing.as_ref().unwrap().borrow();
         enclosing.get(name)
     }
+
+    fn assign(&mut self, name: String, value: Value) -> IntpResult<()> {
+        if let Some(_) = self.values.get(&name) {
+            self.define(name, value);
+            return Ok(());
+        }
+        if self.enclosing.is_some() {
+            let mut enclosing = self.enclosing.as_ref().unwrap().borrow_mut();
+            return enclosing.assign(name, value);
+        }
+        Err(RoxError::RuntimeError)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -76,6 +88,10 @@ impl Interpreter {
 
     fn get(&self, name: &str) -> IntpResult<Value> {
         self.env.borrow().get(name)
+    }
+
+    fn assign(&mut self, name: String, value: Value) -> IntpResult<()> {
+        self.env.borrow_mut().assign(name, value)
     }
 
     fn is_truthy(&self, value: &Value) -> bool {
@@ -137,6 +153,17 @@ impl Interpreter {
         Ok(())
     }
 
+    fn stmt_while(&mut self, stmt: While) -> IntpResult<()> {
+        loop {
+            let cond = self.eval_expr(stmt.cond.clone())?;
+            if !self.is_truthy(&cond) {
+                break;
+            }
+            self.eval_stmt(*stmt.body.clone())?;
+        }
+        Ok(())
+    }
+
     fn eval_expr(&mut self, expr: Expr) -> IntpResult<Value> {
         match expr {
             Expr::Bin(expr) => self.expr_binary(expr),
@@ -145,9 +172,13 @@ impl Interpreter {
                 let value = self.get(&str)?;
                 Ok(value.clone())
             }
+            Expr::Assign(var) => self.expr_assign(var),
+
             _ => todo!(),
         }
     }
+
+    // TODO: add comparison, logical operators
 
     fn expr_binary(&mut self, expr: Bin) -> IntpResult<Value> {
         let left = self.eval_expr(*expr.left)?;
@@ -162,7 +193,6 @@ impl Interpreter {
                     (_, _) => unreachable!(),
                 }
             }
-
             Kind::Minus => match (left, right) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b)),
                 (_, _) => Err(RoxError::RuntimeError),
@@ -175,8 +205,30 @@ impl Interpreter {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a / b)),
                 (_, _) => Err(RoxError::RuntimeError),
             },
-            _ => unreachable!(),
+
+            Kind::Lt => match (left, right) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a < b)),
+                (_, _) => Err(RoxError::RuntimeError),
+            },
+
+            Kind::Gt => match (left, right) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a > b)),
+                (_, _) => Err(RoxError::RuntimeError),
+            },
+
+            Kind::EqEq => match (left, right) {
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Bool(a == b)),
+                (_, _) => Err(RoxError::RuntimeError),
+            },
+            _ => todo!("{:?}", op),
         }
+    }
+
+    fn expr_assign(&mut self, var: Assign) -> IntpResult<Value> {
+        let name = var.name;
+        let expr = self.eval_expr(*var.value)?;
+        self.assign(name, expr)?;
+        Ok(Value::Nil)
     }
 
     fn expr_literal(&mut self, literal: Literal) -> IntpResult<Value> {
@@ -200,6 +252,7 @@ impl Interpreter {
                     self.eval_expr(expr)?;
                 }
                 Stmt::Block(stmts) => self.stmt_block(stmts, Env::new())?,
+                Stmt::While(stmt) => self.stmt_while(stmt)?,
                 _ => todo!(),
             }
         }
@@ -289,5 +342,16 @@ mod tests {
         assert!(ast.is_ok());
         let mut interpreter = Interpreter::new();
         assert!(interpreter.run(ast.unwrap()).is_ok());
+    }
+
+    #[test]
+    fn eval_while() {
+        let source = "var x = 1; while(x < 10) { x = x + 1; print x; } ";
+        let ast = parse(source);
+        assert!(ast.is_ok());
+        let mut interpreter = Interpreter::new();
+        interpreter
+            .run(ast.unwrap())
+            .expect("Error while running 'while'");
     }
 }

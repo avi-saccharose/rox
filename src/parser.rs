@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::{
-    expr::{Assign, Bin, Expr, If, Literal, Stmt, Unary, Var},
+    expr::{Assign, Bin, Expr, If, Literal, Stmt, Unary, Var, While},
     token::{self, Kind, Token},
 };
 
@@ -90,9 +90,10 @@ impl Parser {
 
     pub fn stmt(&mut self) -> ParseResult<Stmt> {
         match self.peek().unwrap().kind {
+            Kind::If => self.stmt_if(),
             Kind::Print => self.stmt_print(),
             Kind::LBrace => self.stmt_block(),
-            Kind::If => self.stmt_if(),
+            Kind::While => self.stmt_while(),
             _ => self.stmt_expr(),
         }
     }
@@ -123,12 +124,6 @@ impl Parser {
         Ok(Stmt::Print(expr))
     }
 
-    fn stmt_expr(&mut self) -> ParseResult<Stmt> {
-        let expr = self.expr()?;
-        self.consume(Kind::Semicolon, "Expect ';' after expression")?;
-        Ok(Stmt::Expr(expr))
-    }
-
     fn stmt_block(&mut self) -> ParseResult<Stmt> {
         self.advance();
         let mut stmts = Vec::new();
@@ -137,6 +132,21 @@ impl Parser {
         }
         self.consume(Kind::RBrace, "Expect '}' after block")?;
         Ok(Stmt::Block(stmts))
+    }
+
+    fn stmt_while(&mut self) -> ParseResult<Stmt> {
+        self.advance();
+        self.consume(Kind::Lparen, "Expect '(' after while")?;
+        let cond = self.expr()?;
+        self.consume(Kind::Rparen, "Expect ')' after expression")?;
+        let body = Box::new(self.stmt()?);
+        Ok(Stmt::While(While { cond, body }))
+    }
+
+    fn stmt_expr(&mut self) -> ParseResult<Stmt> {
+        let expr = self.expr()?;
+        self.consume(Kind::Semicolon, "Expect ';' after expression")?;
+        Ok(Stmt::Expr(expr))
     }
 
     fn expr(&mut self) -> ParseResult<Expr> {
@@ -367,5 +377,12 @@ mod tests {
         let parsed = parse(tokenize("if (true) print true;").unwrap());
         assert!(parsed.is_ok());
         assert!(matches!(parsed.unwrap()[0], Stmt::If(..)));
+    }
+
+    #[test]
+    fn parse_while() {
+        let parsed = parse(tokenize("while(true) print true;").unwrap());
+        assert!(parsed.is_ok());
+        assert!(matches!(parsed.unwrap()[0], Stmt::While(..)));
     }
 }

@@ -7,6 +7,7 @@ pub(crate) enum Stmt {
     Expr(Expr),
     VarDecl(Var),
     Block(Vec<Stmt>),
+    While(While),
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -29,6 +30,12 @@ impl Var {
             _ => unreachable!(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub(crate) struct While {
+    pub cond: Expr,
+    pub body: Box<Stmt>,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]

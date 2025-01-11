@@ -29,6 +29,8 @@ pub(crate) enum Kind {
     Print,
     LBrace,
     RBrace,
+    While,
+    For,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]

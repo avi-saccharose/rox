@@ -86,6 +86,8 @@ impl<'a> Lexer<'a> {
             "true" => (Kind::True, None),
             "false" => (Kind::False, None),
             "nil" => (Kind::Nil, None),
+            "while" => (Kind::While, None),
+            "for" => (Kind::For, None),
             "print" => (Kind::Print, None),
             _ => (Kind::Ident, Some(Literal::Ident(ident))),
         };
